@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   createFileRoute,
   Outlet,
   redirect,
   useNavigate,
 } from '@tanstack/react-router'
-import { Menu, Search, Bell, FileText, LogOut, User as UserIcon, Moon, Sun } from 'lucide-react'
+import { Menu, Search, Bell, FileText, LogOut, User as UserIcon, Moon, Sun, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 
 import { useTheme } from '#/lib/theme.tsx'
 
@@ -27,6 +27,7 @@ import {
 } from '#/components/ui/dropdown-menu.tsx'
 import { SidebarNav } from '#/components/dashboard/sidebar-nav.tsx'
 import { isAuthenticated, logout } from '#/lib/auth-session.ts'
+import { cn } from '#/lib/utils.ts'
 
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: async () => {
@@ -39,8 +40,22 @@ export const Route = createFileRoute('/dashboard')({
 
   function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
   const { theme, toggle } = useTheme()
+
+  useEffect(() => {
+    const stored = localStorage.getItem('docpro_sidebar_collapsed')
+    if (stored === 'true') setCollapsed(true)
+  }, [])
+
+  function toggleSidebar() {
+    setCollapsed((c) => {
+      const next = !c
+      localStorage.setItem('docpro_sidebar_collapsed', String(next))
+      return next
+    })
+  }
 
   async function handleLogout() {
     await logout()
@@ -50,7 +65,12 @@ export const Route = createFileRoute('/dashboard')({
   return (
     <div className="flex min-h-screen w-full">
       {/* Desktop sidebar */}
-      <aside className="relative sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r lg:flex">
+      <aside
+        className={cn(
+          'group/sidebar relative sticky top-0 hidden h-screen shrink-0 flex-col border-r transition-[width] duration-300 lg:flex',
+          collapsed ? 'w-[68px]' : 'w-64',
+        )}
+      >
         {/* Gradient background base */}
         <div className="absolute inset-0 bg-gradient-to-b from-sidebar via-sidebar to-sidebar/60" />
         {/* Decorative glow blobs */}
@@ -67,12 +87,25 @@ export const Route = createFileRoute('/dashboard')({
         </svg>
 
         <div className="relative z-10 flex h-full flex-col">
-          <SidebarHeader />
+          <SidebarHeader collapsed={collapsed} />
           <div className="flex-1 overflow-y-auto py-4">
-            <SidebarNav />
+            <SidebarNav collapsed={collapsed} />
           </div>
-          <SidebarFooter onLogout={handleLogout} />
+          <SidebarFooter onLogout={handleLogout} collapsed={collapsed} />
         </div>
+
+        {/* Collapse toggle button — sits on the border */}
+        <button
+          onClick={toggleSidebar}
+          title={collapsed ? 'Lebarkan sidebar' : 'Persempit sidebar'}
+          className="absolute top-1/2 -right-3 z-30 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-all hover:bg-accent hover:text-foreground"
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="size-3.5" />
+          ) : (
+            <PanelLeftClose className="size-3.5" />
+          )}
+        </button>
       </aside>
 
       {/* Mobile sidebar */}
@@ -82,11 +115,11 @@ export const Route = createFileRoute('/dashboard')({
           <div className="relative flex h-full flex-col">
             <div className="pointer-events-none absolute -top-16 -right-12 size-56 rounded-full bg-primary/10 blur-3xl" />
             <div className="relative z-10 flex h-full flex-col">
-              <SidebarHeader />
+              <SidebarHeader collapsed={false} />
               <div className="flex-1 overflow-y-auto py-4">
-                <SidebarNav onNavigate={() => setMobileOpen(false)} />
+                <SidebarNav onNavigate={() => setMobileOpen(false)} collapsed={false} />
               </div>
-              <SidebarFooter onLogout={handleLogout} />
+              <SidebarFooter onLogout={handleLogout} collapsed={false} />
             </div>
           </div>
         </SheetContent>
@@ -165,44 +198,50 @@ export const Route = createFileRoute('/dashboard')({
   )
 }
 
-function SidebarHeader() {
+function SidebarHeader({ collapsed }: { collapsed: boolean }) {
   return (
-    <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border/60 px-5">
-      <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm shadow-primary/20">
+    <div className={cn('flex h-16 items-center gap-2.5 border-b border-sidebar-border/60', collapsed ? 'justify-center px-2' : 'px-5')}>
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm shadow-primary/20">
         <FileText className="size-5" />
       </div>
-      <div className="flex flex-col leading-tight">
-        <span className="text-sm font-bold tracking-tight">DocPro</span>
-        <span className="text-xs text-muted-foreground">Admin Panel</span>
-      </div>
+      {!collapsed && (
+        <div className="flex flex-col leading-tight">
+          <span className="text-sm font-bold tracking-tight">DocPro</span>
+          <span className="text-xs text-muted-foreground">Admin Panel</span>
+        </div>
+      )}
     </div>
   )
 }
 
-function SidebarFooter({ onLogout }: { onLogout: () => void }) {
+function SidebarFooter({ onLogout, collapsed }: { onLogout: () => void; collapsed: boolean }) {
   return (
     <div className="border-t border-sidebar-border/60 p-3 backdrop-blur-sm">
-      <div className="flex items-center gap-3 rounded-lg bg-sidebar-accent/50 px-2 py-2">
-        <Avatar className="size-9">
+      <div className={cn('flex items-center gap-3 rounded-lg bg-sidebar-accent/50 px-2 py-2', collapsed && 'justify-center')}>
+        <Avatar className="size-9 shrink-0">
           <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
             AR
           </AvatarFallback>
         </Avatar>
-        <div className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="truncate text-sm font-medium">Arie Rahman</span>
-          <span className="truncate text-xs text-muted-foreground">
-            arie@docpro.id
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onLogout}
-          className="text-muted-foreground hover:text-destructive"
-        >
-          <LogOut className="size-4" />
-          <span className="sr-only">Keluar</span>
-        </Button>
+        {!collapsed && (
+          <>
+            <div className="flex min-w-0 flex-1 flex-col leading-tight">
+              <span className="truncate text-sm font-medium">Arie Rahman</span>
+              <span className="truncate text-xs text-muted-foreground">
+                arie@docpro.id
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onLogout}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <LogOut className="size-4" />
+              <span className="sr-only">Keluar</span>
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )
