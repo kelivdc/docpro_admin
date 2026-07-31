@@ -42,7 +42,7 @@ export const Route = createFileRoute('/dashboard')({
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
-  const { theme, toggle } = useTheme()
+  const { toggle } = useTheme()
 
   useEffect(() => {
     const stored = localStorage.getItem('docpro_sidebar_collapsed')
@@ -147,9 +147,11 @@ export const Route = createFileRoute('/dashboard')({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={toggle} title={theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}>
-              {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
-              <span className="sr-only">{theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}</span>
+            <Button variant="ghost" size="icon" onClick={toggle} title="Ubah tema">
+              <Sun className="hidden size-5 dark:block" />
+              <Moon className="block size-5 dark:hidden" />
+              <span className="sr-only dark:hidden">Mode Gelap</span>
+              <span className="sr-only hidden dark:inline">Mode Terang</span>
             </Button>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="size-5" />

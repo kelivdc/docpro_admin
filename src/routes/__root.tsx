@@ -2,14 +2,17 @@ import {
   HeadContent,
   Scripts,
   createRootRouteWithContext,
+  Link,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { FileQuestion, FileText } from 'lucide-react'
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
 import appCss from '../styles.css?url'
 import { ThemeProvider } from '#/lib/theme.tsx'
+import { Button } from '#/components/ui/button.tsx'
 
 import type { QueryClient } from '@tanstack/react-query'
 
@@ -41,11 +44,12 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     ],
   }),
   shellComponent: RootDocument,
+  notFoundComponent: NotFoundPage,
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: FOUC_SCRIPT }} />
         <HeadContent />
@@ -67,5 +71,30 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <Scripts />
       </body>
     </html>
+  )
+}
+
+function NotFoundPage() {
+  return (
+    <div className="flex min-h-screen w-full flex-col items-center justify-center gap-6 bg-background px-4">
+      <div className="flex size-14 items-center justify-center rounded-xl bg-primary/10">
+        <FileQuestion className="size-7 text-primary" />
+      </div>
+      <div className="flex flex-col items-center gap-1 text-center">
+        <h1 className="text-6xl font-bold tracking-tight">404</h1>
+        <p className="text-lg font-medium">Halaman tidak ditemukan</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Halaman yang Anda cari tidak ada atau telah dipindahkan.
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button asChild variant="default">
+          <Link to="/">
+            <FileText className="size-4" />
+            Kembali ke beranda
+          </Link>
+        </Button>
+      </div>
+    </div>
   )
 }

@@ -36,6 +36,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select.tsx'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '#/components/ui/dialog.tsx'
 import { getUsers, updateUserStatus, deleteUser } from '#/lib/user-functions.ts'
 import { cn } from '#/lib/utils.ts'
 
@@ -58,6 +66,11 @@ function UsersPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [busy, setBusy] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; userId: string | null; userName: string }>({
+    open: false,
+    userId: null,
+    userName: '',
+  })
 
   function toggleSort(key: string) {
     if (sortKey === key) {
@@ -140,7 +153,12 @@ function UsersPage() {
       router.invalidate()
     } finally {
       setBusy(null)
+      setDeleteDialog({ open: false, userId: null, userName: '' })
     }
+  }
+
+  function openDeleteDialog(user: typeof userList[number]) {
+    setDeleteDialog({ open: true, userId: user.id, userName: user.name })
   }
 
   return (
@@ -295,7 +313,7 @@ function UsersPage() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
-                            onClick={() => handleDelete(u.id)}
+                            onClick={() => openDeleteDialog(u)}
                           >
                             <Trash2 className="size-4" />
                             Hapus
@@ -371,6 +389,38 @@ function UsersPage() {
           </CardFooter>
         )}
       </Card>
+
+      <Dialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog((d) => ({ ...d, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hapus User</DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin menghapus user <strong>{deleteDialog.userName}</strong>? Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialog({ open: false, userId: null, userName: '' })}
+              disabled={busy === deleteDialog.userId}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteDialog.userId && handleDelete(deleteDialog.userId)}
+              disabled={busy === deleteDialog.userId}
+            >
+              {busy === deleteDialog.userId ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              Hapus
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

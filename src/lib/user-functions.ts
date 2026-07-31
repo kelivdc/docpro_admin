@@ -116,6 +116,8 @@ export const getUserDetail = createServerFn()
 
     const agg = aggResult.rows[0] as { total_queries: number; total_tokens: number; total_storage: number; total_cost_usd: number }
 
+    const documents = await fetchUserDocuments(data.id, row.schema_name)
+
     return {
       id: row.id,
       name: row.name,
@@ -146,12 +148,46 @@ export const getUserDetail = createServerFn()
         costUsd: Number(r.cost_usd),
         costIdr: Number(r.cost_idr),
       })),
+      documents,
       totalQueries: Number(agg.total_queries),
       totalTokens: Number(agg.total_tokens),
       totalStorage: Number(agg.total_storage),
       totalCostUsd: Number(agg.total_cost_usd),
     }
   })
+
+async function fetchUserDocuments(userId: string, schemaName: string | null) {
+  if (!schemaName || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) return []
+
+  try {
+    const result = await db.execute(sql`
+      SELECT
+        id, name, category, status, source_type,
+        size_bytes, chunks_count, share,
+        created_at, updated_at,
+        intelligence_score->>'overall' AS intelligence_score_overall
+      FROM ${sql.raw(`"${schemaName}".documents`)}
+      WHERE owner_id = ${userId}
+      ORDER BY created_at DESC
+      LIMIT 200
+    `)
+    return (result.rows as any[]).map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      status: r.status,
+      sourceType: r.source_type,
+      sizeBytes: Number(r.size_bytes),
+      chunksCount: Number(r.chunks_count),
+      share: r.share,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      intelligenceScore: r.intelligence_score_overall ? Number(r.intelligence_score_overall) : null,
+    }))
+  } catch {
+    return []
+  }
+}
 
 export type UserDetail = {
   id: string
@@ -180,6 +216,19 @@ export type UserDetail = {
     totalTokens: number
     costUsd: number
     costIdr: number
+  }>
+  documents: Array<{
+    id: string
+    name: string
+    category: string | null
+    status: string | null
+    sourceType: string | null
+    sizeBytes: number
+    chunksCount: number
+    share: string | null
+    createdAt: Date
+    updatedAt: Date
+    intelligenceScore: number | null
   }>
   totalQueries: number
   totalTokens: number

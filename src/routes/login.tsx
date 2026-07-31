@@ -27,7 +27,7 @@ export const Route = createFileRoute('/login')({
 
 function LoginPage() {
   const navigate = useNavigate()
-  const { theme, toggle } = useTheme()
+  const { toggle } = useTheme()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -76,11 +76,13 @@ function LoginPage() {
         variant="ghost"
         size="icon"
         onClick={toggle}
-        title={theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}
+        title="Ubah tema"
         className="absolute top-4 right-4 z-50"
       >
-        {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
-        <span className="sr-only">{theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}</span>
+        <Sun className="hidden size-5 dark:block" />
+        <Moon className="block size-5 dark:hidden" />
+        <span className="sr-only dark:hidden">Mode Gelap</span>
+        <span className="sr-only hidden dark:inline">Mode Terang</span>
       </Button>
 
       {/* Branding panel */}

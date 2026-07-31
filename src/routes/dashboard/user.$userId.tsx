@@ -1,10 +1,9 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowLeft, Calendar, Mail, HardDrive, Database, DollarSign, Activity } from 'lucide-react'
+import { ArrowLeft, Calendar, Mail, HardDrive, Database, DollarSign, Activity, Package, CheckCircle, Sparkles, Zap, Server, FileText as FileIcon } from 'lucide-react'
 
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '#/components/ui/card.tsx'
@@ -71,32 +70,33 @@ function UserDetailPage() {
       </div>
 
       <Card>
-        <CardHeader className="pb-0">
-          <Tabs defaultValue="profile">
+        <Tabs defaultValue="profile" className="w-full">
+          <CardHeader className="pb-0">
             <div className="flex items-center justify-between">
               <CardTitle>Detail User</CardTitle>
               <TabsList>
                 <TabsTrigger value="profile">Profile</TabsTrigger>
                 <TabsTrigger value="plan">Plan</TabsTrigger>
+                <TabsTrigger value="documents">Dokumen</TabsTrigger>
                 <TabsTrigger value="queries">Query History</TabsTrigger>
               </TabsList>
             </div>
-            <CardDescription />
-          </Tabs>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="profile">
+          </CardHeader>
+          <CardContent>
             <TabsContent value="profile" className="mt-4 space-y-4">
               <ProfileTab user={user} />
             </TabsContent>
             <TabsContent value="plan" className="mt-4">
               <PlanTab user={user} />
             </TabsContent>
+            <TabsContent value="documents" className="mt-4">
+              <DocumentsTab user={user} />
+            </TabsContent>
             <TabsContent value="queries" className="mt-4">
               <QueryHistoryTab user={user} />
             </TabsContent>
-          </Tabs>
-        </CardContent>
+          </CardContent>
+        </Tabs>
       </Card>
     </div>
   )
@@ -137,27 +137,143 @@ function PlanTab({ user }: { user: UserDetail }) {
     )
   }
 
-  const fields = [
-    { label: 'Tier', value: <Badge variant="default" className="capitalize">{user.plan.tier}</Badge> },
-    { label: 'Schema', value: user.plan.schemaName ?? '-' },
-    { label: 'Bucket', value: user.plan.bucket ?? '-' },
-    { label: 'LLM Mode', value: user.plan.llmMode ?? '-' },
-    { label: 'Org ID', value: user.plan.orgId ?? '-' },
-    { label: 'Dibuat', value: user.plan.createdAt ? formatDate(user.plan.createdAt) : '-', icon: Calendar },
-  ]
+  const planMeta = getPlanMeta(user.plan.tier)
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {fields.map((f) => (
-        <div key={f.label} className="flex items-center gap-2 rounded-lg border p-3">
-          {f.icon && <f.icon className="size-4 shrink-0 text-muted-foreground" />}
-          <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-            <span className="text-sm text-muted-foreground">{f.label}</span>
-            <span className="text-sm font-medium">{f.value}</span>
+    <div className="flex flex-col gap-5">
+      {/* Plan card */}
+      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6">
+        <div className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex size-14 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-sm shadow-primary/10">
+              <Package className="size-7" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm text-muted-foreground">Paket Aktif</span>
+              <div className="flex items-center gap-2">
+                <h3 className="text-2xl font-bold capitalize tracking-tight">{user.plan.tier}</h3>
+                <Badge variant="default" className="bg-primary/20 text-primary hover:bg-primary/30">Aktif</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{planMeta.description}</p>
+            </div>
+          </div>
+          <div className="flex flex-col items-start gap-1 sm:items-end">
+            <span className="text-3xl font-bold tracking-tight">{planMeta.price}</span>
+            <span className="text-sm text-muted-foreground">/bulan</span>
           </div>
         </div>
-      ))}
+      </div>
+
+      {/* Benefits */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="size-4 text-primary" />
+              Fitur Paket
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-col gap-2">
+              {planMeta.features.map((feature, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm">
+                  <CheckCircle className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Zap className="size-4 text-primary" />
+              Limit & Kuota
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-col gap-2">
+              {planMeta.limits.map((limit, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm">
+                  <CheckCircle className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <span>{limit}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Technical details */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Server className="size-4 text-primary" />
+            Detail Teknis
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { label: 'Tier', value: <Badge variant="default" className="capitalize">{user.plan.tier}</Badge> },
+              { label: 'Schema', value: user.plan.schemaName ?? '-' },
+              { label: 'Bucket', value: user.plan.bucket ?? '-' },
+              { label: 'LLM Mode', value: user.plan.llmMode ?? '-' },
+              { label: 'Org ID', value: user.plan.orgId ?? '-' },
+              { label: 'Dibuat', value: user.plan.createdAt ? formatDate(user.plan.createdAt) : '-', icon: Calendar },
+            ].map((f) => (
+              <div key={f.label} className="flex items-center gap-2 rounded-lg border p-3">
+                {f.icon && <f.icon className="size-4 shrink-0 text-muted-foreground" />}
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                  <span className="text-sm text-muted-foreground">{f.label}</span>
+                  <span className="text-sm font-medium">{f.value}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
+  )
+}
+
+function getPlanMeta(tier: string) {
+  const map: Record<string, { price: string; description: string; features: string[]; limits: string[] }> = {
+    free: {
+      price: 'Gratis',
+      description: 'Paket dasar untuk eksplorasi fitur DocPro.',
+      features: ['Akses dasar RAG', '1 knowledge base', 'Community support'],
+      limits: ['100 query/bulan', '100 MB storage', 'Shared LLM queue'],
+    },
+    starter: {
+      price: 'Rp 299K',
+      description: 'Cocok untuk individu atau tim kecil yang mulai menggunakan AI.',
+      features: ['Akses penuh RAG', '3 knowledge bases', 'Email support'],
+      limits: ['1.000 query/bulan', '1 GB storage', 'Priority LLM'],
+    },
+    pro: {
+      price: 'Rp 999K',
+      description: 'Paket profesional dengan kuota besar untuk produksi.',
+      features: ['Akses penuh RAG', '10 knowledge bases', 'Priority support', 'API access'],
+      limits: ['10.000 query/bulan', '10 GB storage', 'Dedicated LLM'],
+    },
+    enterprise: {
+      price: 'Custom',
+      description: 'Solusi kustom dengan dukungan enterprise.',
+      features: ['Unlimited knowledge bases', 'Dedicated infra', 'SLA guarantee', 'Custom integration'],
+      limits: ['Unlimited query', 'Unlimited storage', 'Dedicated support'],
+    },
+  }
+
+  return (
+    map[tier.toLowerCase()] ?? {
+      price: '-',
+      description: `Paket ${tier} aktif untuk user ini.`,
+      features: ['Akses sesuai konfigurasi tenant'],
+      limits: ['Kuota mengikuti kontrak tenant'],
+    }
   )
 }
 
@@ -194,6 +310,56 @@ function QueryHistoryTab({ user }: { user: UserDetail }) {
               <TableCell className="text-right tabular-nums">{Number(row.completionTokens).toLocaleString('id-ID')}</TableCell>
               <TableCell className="text-right tabular-nums">{Number(row.totalTokens).toLocaleString('id-ID')}</TableCell>
               <TableCell className="text-right tabular-nums">${Number(row.costUsd).toFixed(4)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function DocumentsTab({ user }: { user: UserDetail }) {
+  if (user.documents.length === 0) {
+    return (
+      <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+        User ini belum mengunggah dokumen.
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Dokumen</TableHead>
+            <TableHead>Kategori</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Sumber</TableHead>
+            <TableHead>Share</TableHead>
+            <TableHead className="text-right">Ukuran</TableHead>
+            <TableHead className="text-right">Chunks</TableHead>
+            <TableHead className="text-right">Skor</TableHead>
+            <TableHead>Dibuat</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {user.documents.map((doc) => (
+            <TableRow key={doc.id}>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <FileIcon className="size-4 shrink-0 text-primary" />
+                  <span className="max-w-[200px] truncate text-sm font-medium">{doc.name}</span>
+                </div>
+              </TableCell>
+              <TableCell className="text-sm">{doc.category ?? '-'}</TableCell>
+              <TableCell><StatusBadge status={doc.status ?? ''} /></TableCell>
+              <TableCell className="text-sm capitalize">{doc.sourceType ?? '-'}</TableCell>
+              <TableCell className="text-sm capitalize">{doc.share ?? '-'}</TableCell>
+              <TableCell className="text-right tabular-nums text-sm">{formatBytes(doc.sizeBytes)}</TableCell>
+              <TableCell className="text-right tabular-nums text-sm">{doc.chunksCount.toLocaleString('id-ID')}</TableCell>
+              <TableCell className="text-right tabular-nums text-sm">{doc.intelligenceScore ?? '-'}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">{formatDate(doc.createdAt)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
