@@ -82,16 +82,16 @@ function NotFoundPage() {
       </div>
       <div className="flex flex-col items-center gap-1 text-center">
         <h1 className="text-6xl font-bold tracking-tight">404</h1>
-        <p className="text-lg font-medium">Halaman tidak ditemukan</p>
+        <p className="text-lg font-medium">Page not found</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Halaman yang Anda cari tidak ada atau telah dipindahkan.
+          The page you are looking for doesn&apos;t exist or has been moved.
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <Button asChild variant="default">
+        <Button asChild variant="default" className="text-primary-foreground">
           <Link to="/">
             <FileText className="size-4" />
-            Kembali ke beranda
+            Back to home
           </Link>
         </Button>
       </div>
