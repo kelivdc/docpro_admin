@@ -28,9 +28,13 @@ import {
   TabsTrigger,
 } from '#/components/ui/tabs.tsx'
 import { Slider } from '#/components/ui/slider.tsx'
+import { requirePermissionRoute } from '#/lib/route-guards.ts'
 
 export const Route = createFileRoute('/dashboard/settings')({
   component: SettingsPage,
+  beforeLoad: async () => {
+    await requirePermissionRoute('settings.manage')
+  },
 })
 
 function SettingsPage() {

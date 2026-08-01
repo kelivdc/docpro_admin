@@ -1,7 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { sql } from 'drizzle-orm'
+import { hashPassword } from '@better-auth/utils/password'
 import { db } from '#/db'
+import { getCurrentAdmin, requireCurrentAdmin, assertPermission } from '#/lib/admin-auth'
+import { logAdminAction } from '#/lib/admin-log'
+import { removeUserObjects } from '#/lib/minio'
 
 export type UserStatus = 'active' | 'pending' | 'suspended' | 'blocked'
 export type UserRole = 'viewer' | 'editor' | 'admin'
@@ -48,6 +52,8 @@ function formatUser(row: UserRow): UserRecord {
 }
 
 export const getUsers = createServerFn().handler(async () => {
+  const current = await requireCurrentAdmin()
+  assertPermission(current, 'users.view')
   const result = await db.execute(sql`
     SELECT
       u.id,
@@ -74,6 +80,10 @@ const userIdSchema = z.object({ id: z.string() })
 export const getUserDetail = createServerFn()
   .validator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    if (current.level !== 'super' && current.userId !== data.id) {
+      assertPermission(current, 'users.view')
+    }
     const userResult = await db.execute(sql`
       SELECT
         u.id, u.name, u.email, u.email_verified, u.image,
@@ -239,7 +249,52 @@ export type UserDetail = {
 export const deleteUser = createServerFn({ method: 'POST' })
   .validator(userIdSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    assertPermission(current, 'users.manage')
+    const targetUser = await db.execute(
+      sql`SELECT name, email FROM "user" WHERE id = ${data.id}`,
+    )
+    const targetName = targetUser.rows.length
+      ? (targetUser.rows[0] as { name: string }).name
+      : data.id
+
+    const tenant = await db.execute(
+      sql`SELECT schema_name, bucket FROM "tenant_map" WHERE user_id = ${data.id}`,
+    )
+    const row = tenant.rows.length > 0
+      ? (tenant.rows[0] as { schema_name: string; bucket: string })
+      : null
+    const schemaName = row?.schema_name ?? null
+    const bucket = row?.bucket ?? 'docpro-person'
+
+    await removeUserObjects(bucket, data.id)
+
+    if (schemaName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) {
+      if (schemaName === 'person') {
+        await db.execute(sql`DELETE FROM person.chunks WHERE owner_id = ${data.id}`)
+        await db.execute(sql`DELETE FROM person.share_links WHERE owner_id = ${data.id}`)
+        await db.execute(sql`DELETE FROM person.documents WHERE owner_id = ${data.id}`)
+        await db.execute(sql`DELETE FROM person.categories WHERE owner_id = ${data.id}`)
+      } else {
+        await db.execute(sql`DROP SCHEMA IF EXISTS ${sql.raw(`"${schemaName}"`)} CASCADE`)
+      }
+    }
+
+    await db.execute(sql`DELETE FROM chat_sessions WHERE user_id = ${data.id}`)
+
+    await db.execute(
+      sql`UPDATE "admin" SET created_by_id = NULL WHERE created_by_id = ${data.id}`,
+    )
+
     await db.execute(sql`DELETE FROM "user" WHERE id = ${data.id}`)
+
+    await logAdminAction({
+      action: 'user.delete',
+      targetType: 'user',
+      targetId: data.id,
+      targetName,
+      details: { bucket },
+    })
   })
 
 const statusSchema = z.object({ id: z.string(), status: z.string() })
@@ -247,7 +302,40 @@ const statusSchema = z.object({ id: z.string(), status: z.string() })
 export const updateUserStatus = createServerFn({ method: 'POST' })
   .validator(statusSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    assertPermission(current, 'users.manage')
     await db.execute(
       sql`UPDATE "user" SET status = ${data.status}, updated_at = NOW() WHERE id = ${data.id}`,
     )
+    await logAdminAction({
+      action: 'user.update_status',
+      targetType: 'user',
+      targetId: data.id,
+      details: { status: data.status },
+    })
+  })
+
+const changePasswordSchema = z.object({
+  userId: z.string(),
+  password: z.string().min(8),
+})
+
+export const changeUserPassword = createServerFn({ method: 'POST' })
+  .validator(changePasswordSchema)
+  .handler(async ({ data }) => {
+    const current = await getCurrentAdmin()
+    if (!current) throw new Error('Anda tidak memiliki akses')
+    if (current.level !== 'super' && current.userId !== data.userId) {
+      assertPermission(current, 'users.manage')
+    }
+    const passwordHash = await hashPassword(data.password)
+    await db.execute(
+      sql`UPDATE "account" SET password = ${passwordHash}, updated_at = NOW() WHERE user_id = ${data.userId} AND provider_id = 'credential'`,
+    )
+    await logAdminAction({
+      action: 'user.change_password',
+      targetType: 'user',
+      targetId: data.userId,
+      details: { bySelf: current.userId === data.userId },
+    })
   })

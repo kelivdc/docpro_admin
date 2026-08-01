@@ -385,10 +385,15 @@ export type AdminStatus = 'active' | 'invited' | 'revoked'
 export type AdminLevel = 'super' | 'standard'
 export type AdminPermission =
   | 'all'
+  | 'users.view'
   | 'users.manage'
+  | 'admins.view'
+  | 'admins.manage'
+  | 'documents.view'
   | 'documents.manage'
-  | 'settings.manage'
   | 'queries.view'
+  | 'settings.manage'
+  | 'logs.view'
 
 export interface Admin {
   id: string
@@ -473,8 +478,58 @@ export const admins: Admin[] = [
 
 export const adminPermissionLabels: Record<AdminPermission, string> = {
   all: 'Full Access',
+  'users.view': 'Lihat User',
   'users.manage': 'Kelola User',
+  'admins.view': 'Lihat Admin',
+  'admins.manage': 'Kelola Admin',
+  'documents.view': 'Lihat Dokumen',
   'documents.manage': 'Kelola Dokumen',
   'settings.manage': 'Kelola Settings',
   'queries.view': 'Lihat Query',
+  'logs.view': 'Lihat Log Aktivitas',
 }
+
+export const adminPermissionGroups: {
+  label: string
+  permissions: { value: AdminPermission; label: string }[]
+}[] = [
+  {
+    label: 'User',
+    permissions: [
+      { value: 'users.view', label: 'Lihat daftar user & detail' },
+      { value: 'users.manage', label: 'Ubah status, hapus user, ganti password user' },
+    ],
+  },
+  {
+    label: 'Admin',
+    permissions: [
+      { value: 'admins.view', label: 'Lihat daftar admin' },
+      { value: 'admins.manage', label: 'Buat/hapus/block admin, ganti password admin' },
+    ],
+  },
+  {
+    label: 'Dokumen',
+    permissions: [
+      { value: 'documents.view', label: 'Lihat dokumen' },
+      { value: 'documents.manage', label: 'Kelola dokumen' },
+    ],
+  },
+  {
+    label: 'Query',
+    permissions: [
+      { value: 'queries.view', label: 'Lihat riwayat query' },
+    ],
+  },
+  {
+    label: 'Log Aktivitas',
+    permissions: [
+      { value: 'logs.view', label: 'Lihat log aksi admin' },
+    ],
+  },
+  {
+    label: 'Pengaturan',
+    permissions: [
+      { value: 'settings.manage', label: 'Kelola pengaturan' },
+    ],
+  },
+]

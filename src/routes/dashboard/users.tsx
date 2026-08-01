@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createFileRoute, useLoaderData, useRouter, Link } from '@tanstack/react-router'
-import { MoreHorizontal, Search, CheckCircle, Trash2, ShieldCheck, ShieldX, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { MoreHorizontal, Search, CheckCircle, Trash2, ShieldCheck, ShieldX, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react'
 
 import {
   Card,
@@ -45,10 +45,14 @@ import {
   DialogTitle,
 } from '#/components/ui/dialog.tsx'
 import { getUsers, updateUserStatus, deleteUser } from '#/lib/user-functions.ts'
+import { requirePermissionRoute } from '#/lib/route-guards.ts'
 import { cn } from '#/lib/utils.ts'
 
 export const Route = createFileRoute('/dashboard/users')({
   component: UsersPage,
+  beforeLoad: async () => {
+    await requirePermissionRoute('users.view')
+  },
   loader: async () => {
     const users = await getUsers()
     return { users }
@@ -398,6 +402,13 @@ function UsersPage() {
               Apakah Anda yakin ingin menghapus user <strong>{deleteDialog.userName}</strong>? Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
+          <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-destructive" />
+            <p className="text-sm text-muted-foreground">
+              Semua data user akan dihapus permanen: dokumen beserta chunks-nya,
+              kategori, riwayat chat, penggunaan, dan akun login.
+            </p>
+          </div>
           <DialogFooter>
             <Button
               variant="outline"

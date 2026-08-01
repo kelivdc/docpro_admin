@@ -4,6 +4,7 @@ import {
   Outlet,
   redirect,
   useNavigate,
+  Link,
 } from '@tanstack/react-router'
 import { Menu, Search, Bell, FileText, LogOut, User as UserIcon, Moon, Sun, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 
@@ -26,7 +27,9 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu.tsx'
 import { SidebarNav } from '#/components/dashboard/sidebar-nav.tsx'
-import { isAuthenticated, logout } from '#/lib/auth-session.ts'
+import { isAuthenticated, logout, checkAuthSession } from '#/lib/auth-session.ts'
+import { getCurrentAdminClient } from '#/lib/admin-rpc'
+import { CurrentAdminProvider } from '#/lib/current-admin.tsx'
 import { cn } from '#/lib/utils.ts'
 
 export const Route = createFileRoute('/dashboard')({
@@ -35,10 +38,15 @@ export const Route = createFileRoute('/dashboard')({
       throw redirect({ to: '/login' })
     }
   },
+  loader: async () => {
+    const [session, admin] = await Promise.all([checkAuthSession(), getCurrentAdminClient()])
+    return { user: session?.user ?? null, currentAdmin: admin }
+  },
   component: DashboardLayout,
 })
 
   function DashboardLayout() {
+  const { user, currentAdmin } = Route.useLoaderData()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
@@ -63,6 +71,7 @@ export const Route = createFileRoute('/dashboard')({
   }
 
   return (
+    <CurrentAdminProvider admin={currentAdmin}>
     <div className="flex min-h-screen w-full">
       {/* Desktop sidebar */}
       <aside
@@ -91,7 +100,7 @@ export const Route = createFileRoute('/dashboard')({
           <div className="flex-1 overflow-y-auto py-4">
             <SidebarNav collapsed={collapsed} />
           </div>
-          <SidebarFooter onLogout={handleLogout} collapsed={collapsed} />
+          <SidebarFooter user={user} onLogout={handleLogout} collapsed={collapsed} />
         </div>
 
         {/* Collapse toggle button — sits on the border */}
@@ -119,7 +128,7 @@ export const Route = createFileRoute('/dashboard')({
               <div className="flex-1 overflow-y-auto py-4">
                 <SidebarNav onNavigate={() => setMobileOpen(false)} collapsed={false} />
               </div>
-              <SidebarFooter onLogout={handleLogout} collapsed={false} />
+              <SidebarFooter user={user} onLogout={handleLogout} collapsed={false} />
             </div>
           </div>
         </SheetContent>
@@ -163,24 +172,26 @@ export const Route = createFileRoute('/dashboard')({
                 <button className="rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
                   <Avatar className="size-9">
                     <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                      AR
+                      {user?.name ? user.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase() : 'A'}
                     </AvatarFallback>
                   </Avatar>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium">Arie Rahman</span>
-                    <span className="text-xs font-normal text-muted-foreground">
-                      arie@docpro.id
-                    </span>
-                  </div>
-                </DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium">{user?.name ?? 'Admin'}</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {user?.email ?? '-'}
+                      </span>
+                    </div>
+                  </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <UserIcon className="size-4" />
-                  Profil
+                <DropdownMenuItem asChild>
+                  <Link to="/dashboard/profile">
+                    <UserIcon className="size-4" />
+                    Profil
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={handleLogout}>
@@ -197,6 +208,7 @@ export const Route = createFileRoute('/dashboard')({
         </main>
       </div>
     </div>
+    </CurrentAdminProvider>
   )
 }
 
@@ -216,21 +228,25 @@ function SidebarHeader({ collapsed }: { collapsed: boolean }) {
   )
 }
 
-function SidebarFooter({ onLogout, collapsed }: { onLogout: () => void; collapsed: boolean }) {
+function SidebarFooter({ user, onLogout, collapsed }: { user: { name?: string | null; email?: string | null } | null; onLogout: () => void; collapsed: boolean }) {
+  const initials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
+    : 'A'
+
   return (
     <div className="border-t border-sidebar-border/60 p-3 backdrop-blur-sm">
       <div className={cn('flex items-center gap-3 rounded-lg bg-sidebar-accent/50 px-2 py-2', collapsed && 'justify-center')}>
         <Avatar className="size-9 shrink-0">
           <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-            AR
+            {initials}
           </AvatarFallback>
         </Avatar>
         {!collapsed && (
           <>
             <div className="flex min-w-0 flex-1 flex-col leading-tight">
-              <span className="truncate text-sm font-medium">Arie Rahman</span>
+              <span className="truncate text-sm font-medium">{user?.name ?? 'Admin'}</span>
               <span className="truncate text-xs text-muted-foreground">
-                arie@docpro.id
+                {user?.email ?? '-'}
               </span>
             </div>
             <Button

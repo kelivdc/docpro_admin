@@ -36,9 +36,13 @@ import {
   type QueryFeedback,
 } from '#/lib/mock-data.ts'
 import { cn } from '#/lib/utils.ts'
+import { requirePermissionRoute } from '#/lib/route-guards.ts'
 
 export const Route = createFileRoute('/dashboard/queries')({
   component: QueriesPage,
+  beforeLoad: async () => {
+    await requirePermissionRoute('queries.view')
+  },
 })
 
 type FeedbackFilter = 'all' | QueryFeedback

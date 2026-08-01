@@ -66,21 +66,29 @@ import {
   DialogTrigger,
 } from '#/components/ui/dialog.tsx'
 import { Label } from '#/components/ui/label.tsx'
-import { getAdmins, deleteAdmin, createAdmin, changeAdminPassword, blockAdmin, unblockAdmin, updateAdminProfile } from '#/lib/admin-functions.ts'
-import { adminPermissionLabels, type AdminLevel } from '#/lib/mock-data.ts'
+import { getAdmins, deleteAdmin, createAdmin, changeAdminPassword, blockAdmin, unblockAdmin, updateAdminProfile, updateAdminPermissions } from '#/lib/admin-functions.ts'
+import { adminPermissionLabels, adminPermissionGroups, type AdminLevel, type AdminPermission } from '#/lib/mock-data.ts'
+import { getCurrentAdminClient } from '#/lib/admin-rpc'
+import { requirePermissionRoute } from '#/lib/route-guards.ts'
+import { useHasPermission } from '#/lib/current-admin.tsx'
 import { cn } from '#/lib/utils.ts'
 
 export const Route = createFileRoute('/dashboard/admins')({
   component: AdminsPage,
+  beforeLoad: async () => {
+    await requirePermissionRoute('admins.view')
+  },
   loader: async () => {
-    const admins = await getAdmins()
-    return { admins }
+    const [admins, admin] = await Promise.all([getAdmins(), getCurrentAdminClient()])
+    return { admins, currentAdmin: admin }
   },
 })
 
 function AdminsPage() {
-  const { admins: adminList } = useLoaderData({ from: Route.id })
+  const { admins: adminList, currentAdmin } = useLoaderData({ from: Route.id })
   const router = useRouter()
+  const isSuper = currentAdmin?.level === 'super'
+  const canManageAdmins = useHasPermission('admins.manage')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sortKey, setSortKey] = useState<string>('createdAt')
@@ -92,6 +100,7 @@ function AdminsPage() {
   const [createEmail, setCreateEmail] = useState('')
   const [createPassword, setCreatePassword] = useState('')
   const [createLevel, setCreateLevel] = useState<'super' | 'standard'>('standard')
+  const [createPermissions, setCreatePermissions] = useState<AdminPermission[]>(['queries.view'])
   const [createError, setCreateError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -106,7 +115,7 @@ function AdminsPage() {
           email: createEmail,
           password: createPassword,
           level: createLevel,
-          permissions: createLevel === 'super' ? ['all'] : ['documents.manage', 'queries.view'],
+          permissions: createLevel === 'super' ? ['all'] : createPermissions,
         },
       })
       setCreateOpen(false)
@@ -114,12 +123,19 @@ function AdminsPage() {
       setCreateEmail('')
       setCreatePassword('')
       setCreateLevel('standard')
+      setCreatePermissions(['queries.view'])
       router.invalidate()
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Gagal membuat admin')
     } finally {
       setCreating(false)
     }
+  }
+
+  function toggleCreatePermission(perm: AdminPermission) {
+    setCreatePermissions((prev) =>
+      prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm],
+    )
   }
 
   function toggleSort(key: string) {
@@ -195,6 +211,33 @@ function AdminsPage() {
     }
   }
 
+  const [permTarget, setPermTarget] = useState<{ id: string; name: string; permissions: AdminPermission[] } | null>(null)
+  const [permValues, setPermValues] = useState<AdminPermission[]>([])
+  const [permError, setPermError] = useState<string | null>(null)
+  const [savingPerm, setSavingPerm] = useState(false)
+
+  async function handleSavePermissions(e: FormEvent) {
+    e.preventDefault()
+    if (!permTarget) return
+    setPermError(null)
+    setSavingPerm(true)
+    try {
+      await updateAdminPermissions({ data: { id: permTarget.id, permissions: permValues } })
+      setPermTarget(null)
+      router.invalidate()
+    } catch (err) {
+      setPermError(err instanceof Error ? err.message : 'Gagal menyimpan permission')
+    } finally {
+      setSavingPerm(false)
+    }
+  }
+
+  function togglePermValue(perm: AdminPermission) {
+    setPermValues((prev) =>
+      prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm],
+    )
+  }
+
   async function handleChangePassword(e: FormEvent) {
     e.preventDefault()
     if (!passwordAdmin) return
@@ -250,13 +293,15 @@ function AdminsPage() {
             Kelola akses administrator platform DocPro
           </p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="size-4" />
-              Create Admin
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          {canManageAdmins && (
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="size-4" />
+                Create Admin
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create Admin</DialogTitle>
@@ -317,6 +362,43 @@ function AdminsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {createLevel === 'standard' && (
+                <div className="flex flex-col gap-3 rounded-lg border p-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Permissions</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setCreatePermissions(adminPermissionGroups.flatMap((g) => g.permissions.map((p) => p.value)))}
+                    >
+                      Semua
+                    </Button>
+                  </div>
+                  {adminPermissionGroups.map((group) => (
+                    <div key={group.label} className="flex flex-col gap-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">{group.label}</p>
+                      <div className="grid gap-1.5 sm:grid-cols-2">
+                        {group.permissions.map((perm) => (
+                          <label
+                            key={perm.value}
+                            className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent/50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={createPermissions.includes(perm.value)}
+                              onChange={() => toggleCreatePermission(perm.value)}
+                              className="size-4 accent-primary"
+                            />
+                            <span>{perm.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               {createError && (
                 <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                   <AlertCircle className="mt-0.5 size-4 shrink-0" />
@@ -332,6 +414,8 @@ function AdminsPage() {
             </form>
           </DialogContent>
         </Dialog>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -477,6 +561,7 @@ function AdminsPage() {
                       )}
                     </TableCell>
                     <TableCell>
+                      {canManageAdmins || a.id === currentAdmin?.id ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon-sm" disabled={busy === a.id}>
@@ -497,33 +582,46 @@ function AdminsPage() {
                             <KeyRound className="size-4" />
                             Ganti Password
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {a.status === 'blocked' ? (
-                            <DropdownMenuItem onClick={() => handleUnblock(a.id)}>
-                              <Unlock className="size-4" />
-                              Unblock
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem
-                              variant="destructive"
-                              disabled={a.level === 'super'}
-                              onClick={() => handleBlock(a.id)}
-                            >
-                              <Ban className="size-4" />
-                              Block
-                            </DropdownMenuItem>
+                          {canManageAdmins && (
+                            <>
+                              {isSuper && (
+                                <DropdownMenuItem onClick={() => { setPermTarget({ id: a.id, name: a.name, permissions: a.permissions }); setPermValues([...a.permissions]); setPermError(null) }}>
+                                  <Shield className="size-4" />
+                                  Atur Permission
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              {a.status === 'blocked' ? (
+                                <DropdownMenuItem onClick={() => handleUnblock(a.id)}>
+                                  <Unlock className="size-4" />
+                                  Unblock
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  disabled={a.level === 'super'}
+                                  onClick={() => handleBlock(a.id)}
+                                >
+                                  <Ban className="size-4" />
+                                  Block
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={a.level === 'super'}
+                                onClick={() => setDeleteTarget({ id: a.id, name: a.name })}
+                              >
+                                <Trash2 className="size-4" />
+                                Hapus
+                              </DropdownMenuItem>
+                            </>
                           )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            disabled={a.level === 'super'}
-                            onClick={() => setDeleteTarget({ id: a.id, name: a.name })}
-                          >
-                            <Trash2 className="size-4" />
-                            Hapus
-                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -581,6 +679,55 @@ function AdminsPage() {
               <Button type="submit" disabled={savingEdit}>
                 {savingEdit ? <Loader2 className="size-4 animate-spin" /> : null}
                 {savingEdit ? 'Menyimpan...' : 'Simpan'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Atur Permission Dialog */}
+      <Dialog open={permTarget !== null} onOpenChange={(open) => { if (!open) { setPermTarget(null); setPermError(null) } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Atur Permission</DialogTitle>
+            <DialogDescription>
+              Kelola akses untuk <span className="font-medium">{permTarget?.name}</span>. Super admin selalu memiliki akses penuh.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSavePermissions} className="flex flex-col gap-4">
+            <div className="flex max-h-[50vh] flex-col gap-4 overflow-y-auto pr-1">
+              {adminPermissionGroups.map((group) => (
+                <div key={group.label} className="flex flex-col gap-2">
+                  <p className="text-sm font-semibold">{group.label}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {group.permissions.map((perm) => (
+                      <label
+                        key={perm.value}
+                        className="flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent/50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={permValues.includes(perm.value)}
+                          onChange={() => togglePermValue(perm.value)}
+                          className="mt-0.5 size-4 accent-primary"
+                        />
+                        <span>{perm.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {permError && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <span>{permError}</span>
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="submit" disabled={savingPerm}>
+                {savingPerm ? <Loader2 className="size-4 animate-spin" /> : null}
+                {savingPerm ? 'Menyimpan...' : 'Simpan Permission'}
               </Button>
             </DialogFooter>
           </form>

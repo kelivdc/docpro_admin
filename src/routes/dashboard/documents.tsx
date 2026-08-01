@@ -52,9 +52,13 @@ import {
   type DocumentStatus,
 } from '#/lib/mock-data.ts'
 import { cn } from '#/lib/utils.ts'
+import { requirePermissionRoute } from '#/lib/route-guards.ts'
 
 export const Route = createFileRoute('/dashboard/documents')({
   component: DocumentsPage,
+  beforeLoad: async () => {
+    await requirePermissionRoute('documents.view')
+  },
 })
 
 type StatusTab = 'all' | DocumentStatus

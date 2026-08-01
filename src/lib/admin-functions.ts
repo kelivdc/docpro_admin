@@ -5,7 +5,8 @@ import { hashPassword } from '@better-auth/utils/password'
 import { sql } from 'drizzle-orm'
 import { db } from '#/db'
 import type { AdminLevel, AdminPermission } from '#/lib/mock-data'
-
+import { requireCurrentAdmin, assertSuperAdmin, assertPermission } from '#/lib/admin-auth'
+import { logAdminAction } from '#/lib/admin-log'
 export type AdminRecord = {
   id: string
   userId: string
@@ -51,6 +52,8 @@ function formatAdmin(row: AdminRow): AdminRecord {
 }
 
 export const getAdmins = createServerFn().handler(async () => {
+  const current = await requireCurrentAdmin()
+  assertPermission(current, 'admins.view')
   const result = await db.execute(sql`
     SELECT
       a.id,
@@ -77,7 +80,23 @@ const idSchema = z.object({ id: z.string() })
 export const deleteAdmin = createServerFn({ method: 'POST' })
   .validator(idSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    assertPermission(current, 'admins.manage')
+    const target = await db.execute(
+      sql`SELECT a.id, a.user_id, a.level, u.name FROM "admin" a JOIN "user" u ON u.id = a.user_id WHERE a.id = ${data.id}`,
+    )
+    if (target.rows.length === 0) throw new Error('Admin tidak ditemukan')
+    const row = target.rows[0] as { user_id: string; level: string; name: string }
+    if (row.level === 'super') throw new Error('Tidak dapat menghapus super admin')
+    if (row.user_id === current.userId) throw new Error('Tidak dapat menghapus akun sendiri')
     await db.execute(sql`DELETE FROM "admin" WHERE id = ${data.id}`)
+    await logAdminAction({
+      action: 'admin.delete',
+      targetType: 'admin',
+      targetId: data.id,
+      targetName: row.name,
+      details: { level: row.level },
+    })
   })
 
 const statusSchema = z.object({ id: z.string(), status: z.string() })
@@ -85,9 +104,17 @@ const statusSchema = z.object({ id: z.string(), status: z.string() })
 export const updateAdminStatus = createServerFn({ method: 'POST' })
   .validator(statusSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    assertPermission(current, 'admins.manage')
     await db.execute(
       sql`UPDATE "admin" SET status = ${data.status}, updated_at = NOW() WHERE id = ${data.id}`,
     )
+    await logAdminAction({
+      action: 'admin.update_status',
+      targetType: 'admin',
+      targetId: data.id,
+      details: { status: data.status },
+    })
   })
 
 const levelSchema = z.object({ id: z.string(), level: z.string() })
@@ -95,9 +122,38 @@ const levelSchema = z.object({ id: z.string(), level: z.string() })
 export const updateAdminLevel = createServerFn({ method: 'POST' })
   .validator(levelSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    assertSuperAdmin(current)
     await db.execute(
       sql`UPDATE "admin" SET level = ${data.level}, updated_at = NOW() WHERE id = ${data.id}`,
     )
+    await logAdminAction({
+      action: 'admin.update_level',
+      targetType: 'admin',
+      targetId: data.id,
+      details: { level: data.level },
+    })
+  })
+
+const updatePermissionsSchema = z.object({
+  id: z.string(),
+  permissions: z.array(z.enum(['all', 'users.view', 'users.manage', 'admins.view', 'admins.manage', 'documents.view', 'documents.manage', 'queries.view', 'settings.manage', 'logs.view'])),
+})
+
+export const updateAdminPermissions = createServerFn({ method: 'POST' })
+  .validator(updatePermissionsSchema)
+  .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    assertSuperAdmin(current)
+    await db.execute(
+      sql`UPDATE "admin" SET permissions = ${JSON.stringify(data.permissions)}, updated_at = NOW() WHERE id = ${data.id}`,
+    )
+    await logAdminAction({
+      action: 'admin.update_permissions',
+      targetType: 'admin',
+      targetId: data.id,
+      details: { permissions: data.permissions },
+    })
   })
 
 const createAdminSchema = z.object({
@@ -111,6 +167,8 @@ const createAdminSchema = z.object({
 export const createAdmin = createServerFn({ method: 'POST' })
   .validator(createAdminSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    assertPermission(current, 'admins.manage')
     const userId = generateId()
     const passwordHash = await hashPassword(data.password)
     const adminId = `adm_${generateId().slice(0, 6)}`
@@ -128,6 +186,14 @@ export const createAdmin = createServerFn({ method: 'POST' })
       VALUES (${adminId}, ${userId}, ${data.level}, 'active', ${JSON.stringify(data.permissions)}, NOW(), NOW())
     `)
 
+    await logAdminAction({
+      action: 'admin.create',
+      targetType: 'admin',
+      targetId: adminId,
+      targetName: data.name,
+      details: { email: data.email, level: data.level },
+    })
+
     return { id: adminId, userId }
   })
 
@@ -139,11 +205,21 @@ const changePasswordSchema = z.object({
 export const changeAdminPassword = createServerFn({ method: 'POST' })
   .validator(changePasswordSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    if (current.userId !== data.userId) {
+      assertPermission(current, 'admins.manage')
+    }
     const passwordHash = await hashPassword(data.password)
     await db.execute(sql`
       UPDATE "account" SET password = ${passwordHash}, updated_at = NOW()
       WHERE user_id = ${data.userId} AND provider_id = 'credential'
     `)
+    await logAdminAction({
+      action: 'admin.change_password',
+      targetType: 'admin',
+      targetId: data.userId,
+      details: { bySelf: current.userId === data.userId },
+    })
   })
 
 const updateProfileSchema = z.object({
@@ -155,36 +231,66 @@ const updateProfileSchema = z.object({
 export const updateAdminProfile = createServerFn({ method: 'POST' })
   .validator(updateProfileSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
     const admin = await db.execute(
-      sql`SELECT user_id FROM "admin" WHERE id = ${data.id}`,
+      sql`SELECT id, user_id, level FROM "admin" WHERE id = ${data.id}`,
     )
     if (admin.rows.length === 0) throw new Error('Admin not found')
-    const userId = (admin.rows[0] as { user_id: string }).user_id
+    const row = admin.rows[0] as { user_id: string; level: string }
+    if (current.userId !== row.user_id) {
+      assertPermission(current, 'admins.manage')
+    }
+    const userId = row.user_id
     await db.execute(
       sql`UPDATE "user" SET name = ${data.name}, email = ${data.email}, updated_at = NOW() WHERE id = ${userId}`,
     )
+    await logAdminAction({
+      action: 'admin.update_profile',
+      targetType: 'admin',
+      targetId: data.id,
+      targetName: data.name,
+      details: { email: data.email },
+    })
   })
 
 export const blockAdmin = createServerFn({ method: 'POST' })
   .validator(idSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    assertPermission(current, 'admins.manage')
     const admin = await db.execute(
-      sql`SELECT user_id FROM "admin" WHERE id = ${data.id}`,
+      sql`SELECT a.id, a.user_id, a.level, u.name FROM "admin" a JOIN "user" u ON u.id = a.user_id WHERE a.id = ${data.id}`,
     )
     if (admin.rows.length === 0) throw new Error('Admin not found')
-    const userId = (admin.rows[0] as { user_id: string }).user_id
+    const row = admin.rows[0] as { user_id: string; level: string; name: string }
+    if (row.level === 'super') throw new Error('Tidak dapat memblokir super admin')
+    if (row.user_id === current.userId) throw new Error('Tidak dapat memblokir akun sendiri')
+    const userId = row.user_id
     await db.execute(
       sql`UPDATE "admin" SET status = 'blocked', updated_at = NOW() WHERE id = ${data.id}`,
     )
     await db.execute(
       sql`DELETE FROM "session" WHERE user_id = ${userId}`,
     )
+    await logAdminAction({
+      action: 'admin.block',
+      targetType: 'admin',
+      targetId: data.id,
+      targetName: row.name,
+    })
   })
 
 export const unblockAdmin = createServerFn({ method: 'POST' })
   .validator(idSchema)
   .handler(async ({ data }) => {
+    const current = await requireCurrentAdmin()
+    assertPermission(current, 'admins.manage')
     await db.execute(
       sql`UPDATE "admin" SET status = 'active', updated_at = NOW() WHERE id = ${data.id}`,
     )
+    await logAdminAction({
+      action: 'admin.unblock',
+      targetType: 'admin',
+      targetId: data.id,
+    })
   })

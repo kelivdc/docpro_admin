@@ -15,6 +15,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardAdminsRouteImport } from './routes/dashboard/admins'
 import { Route as DashboardDocumentsRouteImport } from './routes/dashboard/documents'
+import { Route as DashboardLogsRouteImport } from './routes/dashboard/logs'
+import { Route as DashboardProfileRouteImport } from './routes/dashboard/profile'
 import { Route as DashboardQueriesRouteImport } from './routes/dashboard/queries'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
 import { Route as DashboardUsersRouteImport } from './routes/dashboard/users'
@@ -51,6 +53,16 @@ const DashboardDocumentsRoute = DashboardDocumentsRouteImport.update({
   path: '/documents',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardLogsRoute = DashboardLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardProfileRoute = DashboardProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardQueriesRoute = DashboardQueriesRouteImport.update({
   id: '/queries',
   path: '/queries',
@@ -83,6 +95,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/dashboard/admins': typeof DashboardAdminsRoute
   '/dashboard/documents': typeof DashboardDocumentsRoute
+  '/dashboard/logs': typeof DashboardLogsRoute
+  '/dashboard/profile': typeof DashboardProfileRoute
   '/dashboard/queries': typeof DashboardQueriesRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/users': typeof DashboardUsersRoute
@@ -95,6 +109,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/dashboard/admins': typeof DashboardAdminsRoute
   '/dashboard/documents': typeof DashboardDocumentsRoute
+  '/dashboard/logs': typeof DashboardLogsRoute
+  '/dashboard/profile': typeof DashboardProfileRoute
   '/dashboard/queries': typeof DashboardQueriesRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/users': typeof DashboardUsersRoute
@@ -109,6 +125,8 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/dashboard/admins': typeof DashboardAdminsRoute
   '/dashboard/documents': typeof DashboardDocumentsRoute
+  '/dashboard/logs': typeof DashboardLogsRoute
+  '/dashboard/profile': typeof DashboardProfileRoute
   '/dashboard/queries': typeof DashboardQueriesRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/users': typeof DashboardUsersRoute
@@ -124,6 +142,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/dashboard/admins'
     | '/dashboard/documents'
+    | '/dashboard/logs'
+    | '/dashboard/profile'
     | '/dashboard/queries'
     | '/dashboard/settings'
     | '/dashboard/users'
@@ -136,6 +156,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/dashboard/admins'
     | '/dashboard/documents'
+    | '/dashboard/logs'
+    | '/dashboard/profile'
     | '/dashboard/queries'
     | '/dashboard/settings'
     | '/dashboard/users'
@@ -149,6 +171,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/dashboard/admins'
     | '/dashboard/documents'
+    | '/dashboard/logs'
+    | '/dashboard/profile'
     | '/dashboard/queries'
     | '/dashboard/settings'
     | '/dashboard/users'
@@ -208,6 +232,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardDocumentsRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/logs': {
+      id: '/dashboard/logs'
+      path: '/logs'
+      fullPath: '/dashboard/logs'
+      preLoaderRoute: typeof DashboardLogsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/profile': {
+      id: '/dashboard/profile'
+      path: '/profile'
+      fullPath: '/dashboard/profile'
+      preLoaderRoute: typeof DashboardProfileRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/queries': {
       id: '/dashboard/queries'
       path: '/queries'
@@ -249,6 +287,8 @@ declare module '@tanstack/react-router' {
 interface DashboardRouteChildren {
   DashboardAdminsRoute: typeof DashboardAdminsRoute
   DashboardDocumentsRoute: typeof DashboardDocumentsRoute
+  DashboardLogsRoute: typeof DashboardLogsRoute
+  DashboardProfileRoute: typeof DashboardProfileRoute
   DashboardQueriesRoute: typeof DashboardQueriesRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardUsersRoute: typeof DashboardUsersRoute
@@ -259,6 +299,8 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAdminsRoute: DashboardAdminsRoute,
   DashboardDocumentsRoute: DashboardDocumentsRoute,
+  DashboardLogsRoute: DashboardLogsRoute,
+  DashboardProfileRoute: DashboardProfileRoute,
   DashboardQueriesRoute: DashboardQueriesRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardUsersRoute: DashboardUsersRoute,
