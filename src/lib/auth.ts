@@ -16,6 +16,12 @@ export const auth = betterAuth({
     type: 'postgres',
   },
   secret: process.env.BETTER_AUTH_SECRET,
+  trustedOrigins: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://admin.nexonace.com',
+    'https://admin.nexonace.com',
+  ],
   emailAndPassword: {
     enabled: true,
     disableSignUp: true,
